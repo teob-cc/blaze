@@ -18,7 +18,6 @@ package org.http4s.blaze.server
 
 import cats.effect._
 import cats.effect.std.Dispatcher
-import cats.effect.std.Semaphore
 import cats.syntax.all._
 import fs2.concurrent.SignallingRef
 import org.http4s._
@@ -100,25 +99,33 @@ private[http4s] trait WebSocketSupport[F[_]] extends Http1ServerStage[F] {
                 case Success(_) =>
                   logger.debug("Switching pipeline segments for websocket")
 
-                  val deadSignal = dispatcher.unsafeRunSync(SignallingRef[F, Boolean](false))
-                  val writeSemaphore = dispatcher.unsafeRunSync(Semaphore[F](1L))
-                  val sentClose = new AtomicBoolean(false)
                   val wsMaxMessageSize =
                     maxBufferSize.getOrElse(WSFrameAggregator.DefaultMaxMessageSize)
-                  val segment =
-                    LeafBuilder(
-                      new Http4sWSStage[F](
+                  // Don't block this thread (by default a compute thread) waiting on the
+                  // dispatcher: allocate the stage and switch the pipeline on the runtime instead
+                  val switchToWebSocket: F[Unit] =
+                    for {
+                      deadSignal <- SignallingRef[F, Boolean](false)
+                      wsStage <- Http4sWSStage[F](
                         wsContext.webSocket,
-                        sentClose,
+                        new AtomicBoolean(false),
                         deadSignal,
-                        writeSemaphore,
                         dispatcher,
                       )
-                    ) // TODO: there is a constructor
-                      .prepend(new WSFrameAggregator(wsMaxMessageSize))
-                      .prepend(new WebSocketDecoder(wsMaxMessageSize))
+                      _ <- F.delay {
+                        val segment =
+                          LeafBuilder(wsStage)
+                            .prepend(new WSFrameAggregator(wsMaxMessageSize))
+                            .prepend(new WebSocketDecoder(wsMaxMessageSize))
+                        this.replaceTail(segment, startup = true)
+                      }
+                    } yield ()
 
-                  this.replaceTail(segment, startup = true)
+                  dispatcher.unsafeRunAndForget(
+                    switchToWebSocket.handleErrorWith(t =>
+                      F.delay(fatalError(t, "Error switching pipeline to websocket"))
+                    )
+                  )
 
                 case Failure(t) => fatalError(t, "Error writing Websocket upgrade response")
               }(executionContext)
