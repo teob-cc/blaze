@@ -28,10 +28,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
-        scala: [3, 2.12, 2.13]
+        os: [self-hosted]
+        scala: [3, 2.13]
         java: [temurin@8]
-    runs-on: ${{ matrix.os }}
+    runs-on: [ "${{ matrix.os }}", test-public ]
     timeout-minutes: 60
     steps:
       - name: Checkout current branch (full)
@@ -59,18 +59,18 @@ jobs:
         run: sbt githubWorkflowCheck
 
       - name: Check headers and formatting
-        if: matrix.java == 'temurin@8' && matrix.os == 'ubuntu-22.04'
+        if: matrix.java == 'temurin@8' && matrix.os == 'self-hosted'
         run: sbt '++ ${{ matrix.scala }}' headerCheckAll scalafmtCheckAll 'project /' scalafmtSbtCheck
 
       - name: Test
         run: sbt '++ ${{ matrix.scala }}' test
 
       - name: Check binary compatibility
-        if: matrix.java == 'temurin@8' && matrix.os == 'ubuntu-22.04'
+        if: matrix.java == 'temurin@8' && matrix.os == 'self-hosted'
         run: sbt '++ ${{ matrix.scala }}' mimaReportBinaryIssues
 
       - name: Generate API documentation
-        if: matrix.java == 'temurin@8' && matrix.os == 'ubuntu-22.04'
+        if: matrix.java == 'temurin@8' && matrix.os == 'self-hosted'
         run: sbt '++ ${{ matrix.scala }}' doc
 
       - name: Check Java formatting
@@ -105,9 +105,9 @@ jobs:
     if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [self-hosted]
         java: [temurin@8]
-    runs-on: ${{ matrix.os }}
+    runs-on: [ "${{ matrix.os }}", test-public ]
     steps:
       - name: Checkout current branch (full)
         uses: actions/checkout@v6
@@ -136,16 +136,6 @@ jobs:
           name: target-${{ matrix.os }}-${{ matrix.java }}-3
 
       - name: Inflate target directories (3)
-        run: |
-          tar xf targets.tar
-          rm targets.tar
-
-      - name: Download target directories (2.12)
-        uses: actions/download-artifact@v6
-        with:
-          name: target-${{ matrix.os }}-${{ matrix.java }}-2.12
-
-      - name: Inflate target directories (2.12)
         run: |
           tar xf targets.tar
           rm targets.tar
@@ -189,9 +179,9 @@ jobs:
     if: github.event.repository.fork == false && github.event_name != 'pull_request'
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [self-hosted]
         java: [temurin@8]
-    runs-on: ${{ matrix.os }}
+    runs-on: [ "${{ matrix.os }}", test-public ]
     steps:
       - name: Checkout current branch (full)
         uses: actions/checkout@v6
@@ -217,16 +207,16 @@ jobs:
       - name: Submit Dependencies
         uses: scalacenter/sbt-dependency-submission@v2
         with:
-          modules-ignore: blaze_3 blaze_2.12 blaze_2.13 blaze-examples_3 blaze-examples_2.12 blaze-examples_2.13 sbt-http4s-org-scalafix-internal_3 sbt-http4s-org-scalafix-internal_2.12 sbt-http4s-org-scalafix-internal_2.13 blaze-testkit_3 blaze-testkit_2.12 blaze-testkit_2.13
+          modules-ignore: blaze_3 blaze_2.13 blaze-examples_3 blaze-examples_2.13 sbt-http4s-org-scalafix-internal_3 sbt-http4s-org-scalafix-internal_2.13 blaze-testkit_3 blaze-testkit_2.13
           configs-ignore: test scala-tool scala-doc-tool test-internal
 
   validate-steward:
     name: Validate Steward Config
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [self-hosted]
         java: [temurin@17]
-    runs-on: ${{ matrix.os }}
+    runs-on: [ "${{ matrix.os }}", test-public ]
     steps:
       - name: Checkout current branch (fast)
         uses: actions/checkout@v6
