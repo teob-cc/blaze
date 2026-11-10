@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, test-public]
     timeout-minutes: 120
     env:
       TEOB_VERSION: ${{ inputs.version }}
@@ -74,7 +74,7 @@ jobs:
           mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
           printf "%s" "$GPG_SECRET" | gpg --batch --passphrase "$GPG_PASS" --import
-          # sbt-typelevel signs non-interactively, so drop the passphrase on this throwaway runner
+          # sbt-typelevel signs non-interactively, so drop the passphrase on this throwaway (ephemeral) runner
           KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ { print $5; exit }')
           (echo "$GPG_PASS"; echo; echo) | gpg --command-fd 0 --pinentry-mode loopback --change-passphrase "$KEY"
           gpg --list-secret-keys
